@@ -1,5 +1,5 @@
 {
-  "name": "ngUpload-error",
+  "name": "ngUpload-console",
   "version": "0.5.11",
   "main": "ng-upload.js",
   "ignore": [
