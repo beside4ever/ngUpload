@@ -1,6 +1,6 @@
 {
   "name": "ngUpload-console",
-  "version": "0.5.11",
+  "version": "0.10.2",
   "main": "ng-upload.js",
   "ignore": [
     "node_modules",
