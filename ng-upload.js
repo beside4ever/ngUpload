@@ -78,6 +78,18 @@ angular.module('ngUpload', [])
     return {
       restrict: 'AC',
       link: function (scope, element, attrs) {
+
+        scope.safeApply = function(fn) {
+          var phase = this.$root.$$phase;
+          if(phase == '$apply' || phase == '$digest') {
+            if(fn && (typeof(fn) === 'function')) {
+              fn();
+            }
+          } else {
+            this.$apply(fn);
+          }
+        };
+
         // Give each directive instance a new id
         iframeID++;
 
@@ -94,6 +106,7 @@ angular.module('ngUpload', [])
         // }
         var fn = attrs.ngUpload ? $parse(attrs.ngUpload) : angular.noop;
         var loading = attrs.ngUploadLoading ? $parse(attrs.ngUploadLoading) : null;
+        var errorFn = attrs.ngError ? $parse(attrs.ngError) : null;
 
         if ( attrs.hasOwnProperty( "uploadOptionsConvertHidden" ) ) {
             // Allow blank or true
@@ -158,48 +171,91 @@ angular.module('ngUpload', [])
             });
           }
 
-          if (!scope.$$phase) {
-            scope.$apply(function() {
+          scope.safeApply(function() {
               if (loading) loading(scope);
               setLoadingState(true);
             });
-          } else {
-            if (loading) loading(scope);
-            setLoadingState(true);
-          }
+          // if (!scope.$$phase) {
+          //   scope.$apply(function() {
+          //     if (loading) loading(scope);
+          //     setLoadingState(true);
+          //   });
+          // } else {
+          //   if (loading) loading(scope);
+          //   setLoadingState(true);
+          // }
         });
 
         // Finish upload
        function uploadEnd() {
           // unbind load after uploadEnd to prevent another load triggering uploadEnd
           iframe.unbind('load');
-          if (!scope.$$phase) {
-            scope.$apply(function() {
+
+          scope.safeApply(function() {
               setLoadingState(false);
             });
-          } else {
-            setLoadingState(false);
-          }
+          // if (!scope.$$phase) {
+          //   scope.$apply(function() {
+          //     setLoadingState(false);
+          //   });
+          // } else {
+          //   setLoadingState(false);
+          // }
           // Get iframe body contents
-          var bodyContent = (iframe[0].contentDocument ||
-            iframe[0].contentWindow.document).body;
+          // var bodyContent = (iframe[0].contentDocument ||
+          //   iframe[0].contentWindow.document).body;
+          // var content;
+          // try {
+          //   content = angular.fromJson(bodyContent.innerText || bodyContent.textContent);
+          // } catch (e) {
+            // Fall back to html if json parse failed
+          //   content = bodyContent.innerHTML;
+          //   $log.warn('Response is not valid JSON');
+          // }
+
           var content;
           try {
-            content = angular.fromJson(bodyContent.innerText || bodyContent.textContent);
+          var bodyContent = (iframe[0].contentDocument ||
+            iframe[0].contentWindow.document).body;
+          
+            content = bodyContent.innerText || bodyContent.textContent;
           } catch (e) {
             // Fall back to html if json parse failed
-            content = bodyContent.innerHTML;
-            $log.warn('Response is not valid JSON');
+            // content = bodyContent.innerHTML;
+            // $log.warn('Response is not valid JSON');
+            content = {"result":{},"status":"FAIL","errors":[{"code":4007,"message":"文件过大"}]};
+            
+            if(errorFn){
+              scope.safeApply(function() {
+                errorFn(scope, {content: {code:1, message:'上传文件超时'}});
+              });
+              return;
+            }
           }
+
+          try{
+            content = angular.fromJson(content);
+          }catch(e){
+            if(errorFn){
+              scope.safeApply(function() {
+                errorFn(scope, {content: {code:1, message:'js验证错误'}});
+              });
+              return;
+            }
+          }
+
           // if outside a digest cycle, execute the upload response function in the active scope
           // else execute the upload response function in the current digest
-          if (!scope.$$phase) {
-             scope.$apply(function () {
-                 fn(scope, { content: content});
-             });
-          } else {
+          scope.safeApply(function() {
             fn(scope, { content: content});
-          }
+          });
+          // if (!scope.$$phase) {
+          //    scope.$apply(function () {
+          //        fn(scope, { content: content});
+          //    });
+          // } else {
+          //   fn(scope, { content: content});
+          // }
         }
       }
     };
